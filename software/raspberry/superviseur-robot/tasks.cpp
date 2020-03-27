@@ -27,6 +27,7 @@
 #define PRIORITY_TSTARTROBOT 20
 #define PRIORITY_TCAMERA 21
 #define PRIORITY_TBATTLEVEL 20
+#define PRIORITY_TDETECTCOMLOSTMONITOR 25
 
 /*
  * Some remarks:
@@ -99,6 +100,10 @@ void Tasks::Init() {
         cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    if (err = rt_sem_create(&sem_errSocket, NULL, 0, S_FIFO)) {
+        cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    } 
     cout << "Semaphores created successfully" << endl << flush;
 
     /**************************************************************************************/
@@ -134,6 +139,11 @@ void Tasks::Init() {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    
+//    if (err = rt_task_create(&th_detectComLostMonitor, "th_detectComLostMonitor", 0, PRIORITY_TDETECTCOMLOSTMONITOR, 0)) {
+//        cerr << "Error task create: " << strerror(-err) << endl << flush;
+//        exit(EXIT_FAILURE);
+//    }
     cout << "Tasks created successfully" << endl << flush;
 
     /**************************************************************************************/
@@ -182,6 +192,10 @@ void Tasks::Run() {
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+//    if (err = rt_task_start(&th_detectComLostMonitor, (void(*)(void*)) & Tasks::DetectComLostMonitor, this)) {
+//        cerr << "Error task start: " << strerror(-err) << endl << flush;
+//        exit(EXIT_FAILURE);
+//    }
     cout << "Tasks launched" << endl << flush;
 }
 
@@ -275,6 +289,7 @@ void Tasks::ReceiveFromMonTask(void *arg) {
 
         if (msgRcv->CompareID(MESSAGE_MONITOR_LOST)) {
             delete(msgRcv);
+            //rt_sem_v(&sem_errSocket);
             exit(-1);
         } else if (msgRcv->CompareID(MESSAGE_ROBOT_COM_OPEN)) {
             rt_sem_v(&sem_openComRobot);
@@ -490,6 +505,29 @@ void Tasks::BattLevelTask(void *arg) {
             WriteInQueue(&q_messageToMon, msgSend);  // msgSend will be deleted by sendToMon
         }
     }
+    
+}
+
+void Tasks::DetectComLostMonitor(void *arg){
+    
+    cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
+    // Synchronization barrier (waiting that all tasks are starting)
+    rt_sem_p(&sem_barrier, TM_INFINITE);
+    
+    /**************************************************************************************/
+    /* The task starts here                                                               */
+    /**************************************************************************************/
+    rt_sem_p(&sem_errSocket, TM_INFINITE);
+    rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
+    monitor.Close();
+    rt_mutex_release(&mutex_monitor);
+    rt_mutex_acquire(&mutex_robot, TM_INFINITE);
+    robot.Close();
+    rt_mutex_release(&mutex_robot);
+    robotStarted = 0;
+    move = MESSAGE_ROBOT_STOP;
+    watchdog = false;
+    Join();
     
 }
 

@@ -77,6 +77,7 @@ private:
     RT_TASK th_startRobot;
     RT_TASK th_move;
     RT_TASK th_battLevel;
+    RT_TASK th_detectComLostMonitor;
     
     /**********************************************************************/
     /* Mutex                                                              */
@@ -94,6 +95,7 @@ private:
     RT_SEM sem_openComRobot;
     RT_SEM sem_serverOk;
     RT_SEM sem_startRobot;
+    RT_SEM sem_errSocket;
 
     /**********************************************************************/
     /* Message queues                                                     */
@@ -138,6 +140,11 @@ private:
     * @brief Thread sending robot battery level to monitor.
     */
     void BattLevelTask(void *arg);
+    
+    /**
+    * @brief Thread detecting communication lost with monitor.
+    */
+    void DetectComLostMonitor(void *arg);
     
     /**********************************************************************/
     /* Queue services                                                     */
