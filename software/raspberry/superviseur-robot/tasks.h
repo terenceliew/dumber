@@ -77,6 +77,7 @@ private:
     RT_TASK th_startRobot;
     RT_TASK th_move;
     RT_TASK th_battLevel;
+    RT_TASK th_rechargeWD;
     RT_TASK th_detectComLostMonitor;
     
     /**********************************************************************/
@@ -96,6 +97,7 @@ private:
     RT_SEM sem_serverOk;
     RT_SEM sem_startRobot;
     RT_SEM sem_errSocket;
+    RT_SEM sem_rechargeWD;
 
     /**********************************************************************/
     /* Message queues                                                     */
@@ -135,6 +137,11 @@ private:
      * @brief Thread handling control of the robot.
      */
     void MoveTask(void *arg);
+    
+    /**
+    * @brief Thread reloading WD periodically.
+    */
+    void RechargeWDTask(void *arg);
     
     /**
     * @brief Thread sending robot battery level to monitor.

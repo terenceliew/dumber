@@ -26,6 +26,7 @@
 #define PRIORITY_TRECEIVEFROMMON 25
 #define PRIORITY_TSTARTROBOT 20
 #define PRIORITY_TCAMERA 21
+#define PRIORITY_TRECHARGEWD 21
 #define PRIORITY_TBATTLEVEL 20
 #define PRIORITY_TDETECTCOMLOSTMONITOR 25
 
@@ -100,6 +101,10 @@ void Tasks::Init() {
         cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    if (err = rt_sem_create(&sem_rechargeWD, NULL, 0, S_FIFO)) {
+        cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    } 
     if (err = rt_sem_create(&sem_errSocket, NULL, 0, S_FIFO)) {
         cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
@@ -133,8 +138,10 @@ void Tasks::Init() {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
-    cout << "Tasks created successfully" << endl << flush;
-    
+    if (err = rt_task_create(&th_rechargeWD, "th_rechargeWD", 0, PRIORITY_TRECHARGEWD, 0)) {
+        cerr << "Error task create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
     if (err = rt_task_create(&th_battLevel, "th_battLevel", 0, PRIORITY_TBATTLEVEL, 0)) {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
@@ -185,6 +192,10 @@ void Tasks::Run() {
         exit(EXIT_FAILURE);
     }
     if (err = rt_task_start(&th_move, (void(*)(void*)) & Tasks::MoveTask, this)) {
+        cerr << "Error task start: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    if (err = rt_task_start(&th_rechargeWD, (void(*)(void*)) & Tasks::RechargeWDTask, this)) {
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
@@ -393,16 +404,42 @@ void Tasks::StartRobotTask(void *arg) {
         }
         
         if(wd==true){
-            rt_task_set_periodic(NULL, TM_NOW, 1000000000);
-            while(rs==1){
-                rt_task_wait_period(NULL);
-                rt_mutex_acquire(&mutex_robot, TM_INFINITE);
-                msgSend = robot.Write(robot.ReloadWD());
-                rt_mutex_release(&mutex_robot);
-                rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
-                rs=robotStarted;
-                rt_mutex_release(&mutex_robotStarted); 
-            }
+            rt_sem_v(&sem_rechargeWD);
+        }
+    }
+}
+
+
+/**
+ * @brief Thread reloading WD periodically.
+ */
+void Tasks::RechargeWDTask(void *arg) {
+    int rs=0;
+    bool wd=false;
+    
+    cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
+    // Synchronization barrier (waiting that all tasks are starting)
+    rt_sem_p(&sem_barrier, TM_INFINITE);
+    
+    /**************************************************************************************/
+    /* The task startRobot starts here                                                    */
+    /**************************************************************************************/
+    rt_sem_p(&sem_rechargeWD, TM_INFINITE);
+    rt_task_set_periodic(NULL, TM_NOW, 1000000000);
+    
+    while (1) {
+        rt_task_wait_period(NULL);
+        rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
+        rs = robotStarted;
+        rt_mutex_release(&mutex_robotStarted);
+        rt_mutex_acquire(&mutex_watchdog, TM_INFINITE);
+        wd=watchdog;
+        rt_mutex_release(&mutex_watchdog);
+        if (rs == 1 & wd==true) {
+            rt_mutex_acquire(&mutex_robot, TM_INFINITE);
+            robot.Write(robot.ReloadWD());
+            rt_mutex_release(&mutex_robot);
+            cout << "Reload Watchdog\n";
         }
     }
 }
