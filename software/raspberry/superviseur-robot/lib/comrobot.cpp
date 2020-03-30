@@ -131,7 +131,11 @@ int ComRobot::Open(string usart) {
  * @return Success if above 0, failure if below 0
  */
 int ComRobot::Close() {
+#ifdef __SIMULATION__
+    return close(sock);
+#elif
     return close(fd);
+#endif
 }
 
 /**
@@ -155,17 +159,22 @@ Message *ComRobot::Write(Message* msg) {
 
         char buffer[1024] = {0};
         cout << "[" << __PRETTY_FUNCTION__ << "] Send command: " << s << endl << flush;
-        send(sock, s.c_str(), s.length(), 0);
+        send(sock, s.c_str(), s.length(), MSG_NOSIGNAL);
 
         int valread = read(sock, buffer, 1024);
-        if (valread < 0) {
+
+        if (valread == 0) {
+            cout << "The communication is out of order" << endl;
+            msgAnswer = new Message(MESSAGE_ANSWER_COM_ERROR);
+        } else if (valread < 0) {
+            cout << "Timeout" << endl;
             msgAnswer = new Message(MESSAGE_ANSWER_ROBOT_TIMEOUT);
         } else {
             string s(&buffer[0], valread);
             msgAnswer = StringToMessage(s);
-            //msgAnswer = new Message(MESSAGE_ANSWER_ACK);
+            cout << "Response: " << buffer << ", id: " << msgAnswer->GetID() << endl;
         }
-        cout << "response: " <<  buffer << ", id: " << msgAnswer->GetID() << endl;
+
 #else       
         AddChecksum(s);
 
