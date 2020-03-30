@@ -67,6 +67,7 @@ private:
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
     bool watchdog = false;
+    int robotSurveillance=0;
     /**********************************************************************/
     /* Tasks                                                              */
     /**********************************************************************/
@@ -79,6 +80,7 @@ private:
     RT_TASK th_battLevel;
     RT_TASK th_rechargeWD;
     RT_TASK th_detectComLostMonitor;
+    RT_TASK th_detectComLostRobot;
     
     /**********************************************************************/
     /* Mutex                                                              */
@@ -88,6 +90,7 @@ private:
     RT_MUTEX mutex_robotStarted;
     RT_MUTEX mutex_move;
     RT_MUTEX mutex_watchdog;
+    RT_MUTEX mutex_robotSurveillance;
 
     /**********************************************************************/
     /* Semaphores                                                         */
@@ -98,6 +101,7 @@ private:
     RT_SEM sem_startRobot;
     RT_SEM sem_errSocket;
     RT_SEM sem_rechargeWD;
+    RT_SEM sem_errRobot;
 
     /**********************************************************************/
     /* Message queues                                                     */
@@ -152,6 +156,11 @@ private:
     * @brief Thread detecting communication lost with monitor.
     */
     void DetectComLostMonitor(void *arg);
+    
+    /**
+    * @brief Thread detecting communication lost with robot.
+    */
+    void DetectComLostRobot(void *arg);
     
     /**********************************************************************/
     /* Queue services                                                     */
