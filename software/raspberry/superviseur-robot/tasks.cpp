@@ -645,7 +645,7 @@ void Tasks::DetectComLostRobot(void *arg){
     /**************************************************************************************/
     /* The task starts here                                                               */
     /**************************************************************************************/
-    while(1){
+    while(cmpt<3){
         rt_sem_p(&sem_errRobot, TM_INFINITE);
         rt_mutex_acquire(&mutex_robotSurveillance, TM_INFINITE);
         cmpt=robotSurveillance;
@@ -660,6 +660,23 @@ void Tasks::DetectComLostRobot(void *arg){
             rt_mutex_release(&mutex_robot);
             cout << "Robot Lost!!!" << endl << flush;
             
+            rt_mutex_acquire(&mutex_robotSurveillance, TM_INFINITE);
+            robotSurveillance=0;
+            rt_mutex_release(&mutex_robotSurveillance);
+            
+            rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
+            robotStarted = 0;
+            rt_mutex_release(&mutex_robotStarted);
+            
+            rt_mutex_acquire(&mutex_move, TM_INFINITE);
+            move = MESSAGE_ROBOT_STOP;
+            rt_mutex_release(&mutex_move);
+            
+            rt_mutex_acquire(&mutex_watchdog, TM_INFINITE);
+            watchdog = false;
+            rt_mutex_release(&mutex_watchdog);
+            
+            Join();
         }
         
     }
