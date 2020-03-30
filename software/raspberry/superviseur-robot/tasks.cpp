@@ -156,10 +156,10 @@ void Tasks::Init() {
         exit(EXIT_FAILURE);
     }
     
-//    if (err = rt_task_create(&th_detectComLostMonitor, "th_detectComLostMonitor", 0, PRIORITY_TDETECTCOMLOSTMONITOR, 0)) {
-//        cerr << "Error task create: " << strerror(-err) << endl << flush;
-//        exit(EXIT_FAILURE);
-//    }
+    if (err = rt_task_create(&th_detectComLostMonitor, "th_detectComLostMonitor", 0, PRIORITY_TDETECTCOMLOSTMONITOR, 0)) {
+        cerr << "Error task create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
     
     if (err = rt_task_create(&th_detectComLostRobot, "th_detectComLostRobot", 0, PRIORITY_TDETECTCOMLOSTROBOT, 0)) {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
@@ -217,10 +217,10 @@ void Tasks::Run() {
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
-//    if (err = rt_task_start(&th_detectComLostMonitor, (void(*)(void*)) & Tasks::DetectComLostMonitor, this)) {
-//        cerr << "Error task start: " << strerror(-err) << endl << flush;
-//        exit(EXIT_FAILURE);
-//    }
+    if (err = rt_task_start(&th_detectComLostMonitor, (void(*)(void*)) & Tasks::DetectComLostMonitor, this)) {
+        cerr << "Error task start: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
     if (err = rt_task_start(&th_detectComLostRobot, (void(*)(void*)) & Tasks::DetectComLostRobot, this)) {
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
@@ -302,6 +302,7 @@ void Tasks::SendToMonTask(void* arg) {
  */
 void Tasks::ReceiveFromMonTask(void *arg) {
     Message *msgRcv;
+    int exit_loop=0;
     
     cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
     // Synchronization barrier (waiting that all tasks are starting)
@@ -313,14 +314,15 @@ void Tasks::ReceiveFromMonTask(void *arg) {
     rt_sem_p(&sem_serverOk, TM_INFINITE);
     cout << "Received message from monitor activated" << endl << flush;
 
-    while (1) {
+    while (not exit_loop) {
         msgRcv = monitor.Read();
         cout << "Rcv <= " << msgRcv->ToString() << endl << flush;
 
         if (msgRcv->CompareID(MESSAGE_MONITOR_LOST)) {
-            delete(msgRcv);
-            //rt_sem_v(&sem_errSocket);
-            exit(-1);
+            //delete(msgRcv);
+            rt_sem_v(&sem_errSocket);
+            exit_loop=1;
+            //exit(-1);
         } else if (msgRcv->CompareID(MESSAGE_ROBOT_COM_OPEN)) {
             rt_sem_v(&sem_openComRobot);
         } else if (msgRcv->CompareID(MESSAGE_ROBOT_START_WITHOUT_WD)) {
@@ -627,10 +629,31 @@ void Tasks::DetectComLostMonitor(void *arg){
     rt_mutex_acquire(&mutex_robot, TM_INFINITE);
     robot.Close();
     rt_mutex_release(&mutex_robot);
+    
+    /*Réinitialisation*/
+    rt_mutex_acquire(&mutex_robotSurveillance, TM_INFINITE);
+    robotSurveillance=0;
+    rt_mutex_release(&mutex_robotSurveillance);
+
+    rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
     robotStarted = 0;
+    rt_mutex_release(&mutex_robotStarted);
+
+    rt_mutex_acquire(&mutex_move, TM_INFINITE);
     move = MESSAGE_ROBOT_STOP;
+    rt_mutex_release(&mutex_move);
+
+    rt_mutex_acquire(&mutex_watchdog, TM_INFINITE);
     watchdog = false;
+    rt_mutex_release(&mutex_watchdog);
+
     Join();
+    
+    
+//    robotStarted = 0;
+//    move = MESSAGE_ROBOT_STOP;
+//    watchdog = false;
+//    Join();
     
 }
 
@@ -660,6 +683,7 @@ void Tasks::DetectComLostRobot(void *arg){
             rt_mutex_release(&mutex_robot);
             cout << "Robot Lost!!!" << endl << flush;
             
+            /*Réinitialisation*/
             rt_mutex_acquire(&mutex_robotSurveillance, TM_INFINITE);
             robotSurveillance=0;
             rt_mutex_release(&mutex_robotSurveillance);
