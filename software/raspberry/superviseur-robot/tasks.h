@@ -102,6 +102,7 @@ private:
     RT_SEM sem_errSocket;
     RT_SEM sem_rechargeWD;
     RT_SEM sem_errRobot;
+    RT_SEM sem_restartServer;
 
     /**********************************************************************/
     /* Message queues                                                     */

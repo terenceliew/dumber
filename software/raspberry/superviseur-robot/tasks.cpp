@@ -28,7 +28,7 @@
 #define PRIORITY_TCAMERA 21
 #define PRIORITY_TRECHARGEWD 21
 #define PRIORITY_TBATTLEVEL 20
-#define PRIORITY_TDETECTCOMLOSTMONITOR 25
+#define PRIORITY_TDETECTCOMLOSTMONITOR 99
 #define PRIORITY_TDETECTCOMLOSTROBOT 25
 
 /*
@@ -118,6 +118,11 @@ void Tasks::Init() {
         cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    if (err = rt_sem_create(&sem_restartServer, NULL, 0, S_FIFO)) {
+        cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+            
     cout << "Semaphores created successfully" << endl << flush;
 
     /**************************************************************************************/
@@ -258,18 +263,24 @@ void Tasks::ServerTask(void *arg) {
     /**************************************************************************************/
     /* The task server starts here                                                        */
     /**************************************************************************************/
-    rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
-    status = monitor.Open(SERVER_PORT);
-    rt_mutex_release(&mutex_monitor);
+    while(1){
+        rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
+        status = monitor.Open(SERVER_PORT);
+        rt_mutex_release(&mutex_monitor);
 
-    cout << "Open server on port " << (SERVER_PORT) << " (" << status << ")" << endl;
+        cout << "Open server on port " << (SERVER_PORT) << " (" << status << ")" << endl;
 
-    if (status < 0) throw std::runtime_error {
-        "Unable to start server on port " + std::to_string(SERVER_PORT)
-    };
-    monitor.AcceptClient(); // Wait the monitor client
-    cout << "Rock'n'Roll baby, client accepted!" << endl << flush;
-    rt_sem_broadcast(&sem_serverOk);
+        if (status < 0) throw std::runtime_error {
+            "Unable to start server on port " + std::to_string(SERVER_PORT)
+        };
+        monitor.AcceptClient(); // Wait the monitor client
+        cout << "Rock'n'Roll baby, client accepted!" << endl << flush;
+        rt_sem_broadcast(&sem_serverOk);
+        rt_sem_p(&sem_restartServer, TM_INFINITE);
+//        rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
+//        monitor.Close();
+//        rt_mutex_release(&mutex_monitor);
+    }
 }
 
 /**
@@ -314,14 +325,15 @@ void Tasks::ReceiveFromMonTask(void *arg) {
     rt_sem_p(&sem_serverOk, TM_INFINITE);
     cout << "Received message from monitor activated" << endl << flush;
 
-    while (not exit_loop) {
+    while (1) {
         msgRcv = monitor.Read();
         cout << "Rcv <= " << msgRcv->ToString() << endl << flush;
 
         if (msgRcv->CompareID(MESSAGE_MONITOR_LOST)) {
             //delete(msgRcv);
             rt_sem_v(&sem_errSocket);
-            exit_loop=1;
+            rt_sem_p(&sem_serverOk, TM_INFINITE);
+            //exit_loop=1;
             //exit(-1);
         } else if (msgRcv->CompareID(MESSAGE_ROBOT_COM_OPEN)) {
             rt_sem_v(&sem_openComRobot);
@@ -622,32 +634,35 @@ void Tasks::DetectComLostMonitor(void *arg){
     /**************************************************************************************/
     /* The task starts here                                                               */
     /**************************************************************************************/
-    rt_sem_p(&sem_errSocket, TM_INFINITE);
-    rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
-    monitor.Close();
-    rt_mutex_release(&mutex_monitor);
-    rt_mutex_acquire(&mutex_robot, TM_INFINITE);
-    robot.Close();
-    rt_mutex_release(&mutex_robot);
-    
-    /*Réinitialisation*/
-    rt_mutex_acquire(&mutex_robotSurveillance, TM_INFINITE);
-    robotSurveillance=0;
-    rt_mutex_release(&mutex_robotSurveillance);
+    while(1){
+        rt_sem_p(&sem_errSocket, TM_INFINITE);
+        rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
+        monitor.Close();
+        rt_mutex_release(&mutex_monitor);
+        rt_mutex_acquire(&mutex_robot, TM_INFINITE);
+        robot.Close();
+        rt_mutex_release(&mutex_robot);
 
-    rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
-    robotStarted = 0;
-    rt_mutex_release(&mutex_robotStarted);
+        /*Réinitialisation*/
+        rt_mutex_acquire(&mutex_robotSurveillance, TM_INFINITE);
+        robotSurveillance=0;
+        rt_mutex_release(&mutex_robotSurveillance);
 
-    rt_mutex_acquire(&mutex_move, TM_INFINITE);
-    move = MESSAGE_ROBOT_STOP;
-    rt_mutex_release(&mutex_move);
+        rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
+        robotStarted = 0;
+        rt_mutex_release(&mutex_robotStarted);
 
-    rt_mutex_acquire(&mutex_watchdog, TM_INFINITE);
-    watchdog = false;
-    rt_mutex_release(&mutex_watchdog);
+        rt_mutex_acquire(&mutex_move, TM_INFINITE);
+        move = MESSAGE_ROBOT_STOP;
+        rt_mutex_release(&mutex_move);
 
-    Join();
+        rt_mutex_acquire(&mutex_watchdog, TM_INFINITE);
+        watchdog = false;
+        rt_mutex_release(&mutex_watchdog);
+
+        rt_sem_v(&sem_restartServer);
+    }
+    //Join();
     
     
 //    robotStarted = 0;
@@ -700,7 +715,7 @@ void Tasks::DetectComLostRobot(void *arg){
             watchdog = false;
             rt_mutex_release(&mutex_watchdog);
             
-            Join();
+            rt_sem_v(&sem_openComRobot);;
         }
         
     }
