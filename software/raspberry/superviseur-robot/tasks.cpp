@@ -491,7 +491,7 @@ void Tasks::RechargeWDTask(void *arg) {
                 rt_mutex_release(&mutex_robotSurveillance);
                 rt_sem_v(&sem_errRobot);
             }
-            
+            WriteInQueue(&q_messageToMon, msgSend);  // msgSend will be deleted by sendToMon
             cout << "Reload Watchdog\n";
         }
     }
@@ -683,7 +683,7 @@ void Tasks::DetectComLostRobot(void *arg){
     /**************************************************************************************/
     /* The task starts here                                                               */
     /**************************************************************************************/
-    while(cmpt<3){
+    while(1){
         rt_sem_p(&sem_errRobot, TM_INFINITE);
         rt_mutex_acquire(&mutex_robotSurveillance, TM_INFINITE);
         cmpt=robotSurveillance;
@@ -691,8 +691,8 @@ void Tasks::DetectComLostRobot(void *arg){
         cout << "Communication Error!!!" << endl << flush;
         if (cmpt==3){
             
-            //msgSend = new Message(LOST_DMB);
-            //WriteInQueue(&q_messageToMon, msgSend);  // msgSend will be deleted by sendToMon
+            msgSend = new Message(MESSAGE_ANSWER_COM_ERROR);
+            WriteInQueue(&q_messageToMon, msgSend);  // msgSend will be deleted by sendToMon
             rt_mutex_acquire(&mutex_robot, TM_INFINITE);
             robot.Close();
             rt_mutex_release(&mutex_robot);
