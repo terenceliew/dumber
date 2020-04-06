@@ -20,16 +20,16 @@
 
 // Déclaration des priorités des taches
 #define PRIORITY_TSERVER 30
-#define PRIORITY_TOPENCOMROBOT 20
+#define PRIORITY_TOPENCOMROBOT 28
 #define PRIORITY_TMOVE 20
 #define PRIORITY_TSENDTOMON 22
 #define PRIORITY_TRECEIVEFROMMON 25
-#define PRIORITY_TSTARTROBOT 20
+#define PRIORITY_TSTARTROBOT 27
 #define PRIORITY_TCAMERA 21
-#define PRIORITY_TRECHARGEWD 21
-#define PRIORITY_TBATTLEVEL 20
+#define PRIORITY_TRECHARGEWD 26
+#define PRIORITY_TBATTLEVEL 13
 #define PRIORITY_TDETECTCOMLOSTMONITOR 99
-#define PRIORITY_TDETECTCOMLOSTROBOT 25
+#define PRIORITY_TDETECTCOMLOSTROBOT 29
 
 /*
  * Some remarks:
@@ -606,7 +606,7 @@ void Tasks::BattLevelTask(void *arg) {
             cout << "Battery Level: " << msgSend << endl << flush;
             WriteInQueue(&q_messageToMon, msgSend);  // msgSend will be deleted by sendToMon
             
-            if (msgSend->GetID() == MESSAGE_ANSWER_ACK) {
+            if (msgSend->GetID() == MESSAGE_ROBOT_BATTERY_LEVEL) {
                 rt_mutex_acquire(&mutex_robotSurveillance, TM_INFINITE);
                 robotSurveillance = 0;
                 rt_mutex_release(&mutex_robotSurveillance);
