@@ -277,9 +277,6 @@ void Tasks::ServerTask(void *arg) {
         cout << "Rock'n'Roll baby, client accepted!" << endl << flush;
         rt_sem_broadcast(&sem_serverOk);
         rt_sem_p(&sem_restartServer, TM_INFINITE);
-//        rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
-//        monitor.Close();
-//        rt_mutex_release(&mutex_monitor);
     }
 }
 
@@ -313,7 +310,6 @@ void Tasks::SendToMonTask(void* arg) {
  */
 void Tasks::ReceiveFromMonTask(void *arg) {
     Message *msgRcv;
-    int exit_loop=0;
     
     cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
     // Synchronization barrier (waiting that all tasks are starting)
@@ -330,11 +326,8 @@ void Tasks::ReceiveFromMonTask(void *arg) {
         cout << "Rcv <= " << msgRcv->ToString() << endl << flush;
 
         if (msgRcv->CompareID(MESSAGE_MONITOR_LOST)) {
-            //delete(msgRcv);
             rt_sem_v(&sem_errSocket);
             rt_sem_p(&sem_serverOk, TM_INFINITE);
-            //exit_loop=1;
-            //exit(-1);
         } else if (msgRcv->CompareID(MESSAGE_ROBOT_COM_OPEN)) {
             rt_sem_v(&sem_openComRobot);
         } else if (msgRcv->CompareID(MESSAGE_ROBOT_START_WITHOUT_WD)) {
@@ -662,14 +655,6 @@ void Tasks::DetectComLostMonitor(void *arg){
 
         rt_sem_v(&sem_restartServer);
     }
-    //Join();
-    
-    
-//    robotStarted = 0;
-//    move = MESSAGE_ROBOT_STOP;
-//    watchdog = false;
-//    Join();
-    
 }
 
 void Tasks::DetectComLostRobot(void *arg){
